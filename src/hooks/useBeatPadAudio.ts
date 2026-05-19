@@ -1,16 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
 
-export type SampleName = 'kick' | 'clap' | 'hi-hat' | 'synth';
+export type SampleName =
+  | 'kick'
+  | 'snare'
+  | 'clap'
+  | 'hi-hat'
+  | 'open-hat'
+  | 'tom'
+  | 'rim'
+  | 'synth';
 export type ClapNoise = 'white' | 'pink' | 'brown';
-export type ChordType = 'min7' | 'maj7' | 'min' | 'maj' | 'sus4';
+export type ChordName = 'Cmaj' | 'Amin' | 'Fmaj' | 'Gmaj';
 
 export interface SynthConfig {
   kickNote: string;
   clapNoise: ClapNoise;
   hatCutoff: number;
-  chordRoot: string;
-  chordType: ChordType;
+  chord: ChordName;
 }
 
 export interface BeatPadAudio {
@@ -27,34 +34,32 @@ const EXPRESSION_MAX_HZ = 4000;
 
 export const KICK_NOTES = ['C0', 'E0', 'G0', 'A0', 'C1', 'E1', 'G1', 'C2'];
 export const HAT_CUTOFFS = [5000, 6500, 8000, 9500, 11000];
-export const CHORD_ROOTS = [
-  'C3', 'D3', 'E3', 'F3', 'G3', 'A3',
-  'C4', 'D4', 'E4', 'F4', 'G4', 'A4',
-];
-export const CHORD_TYPES: ChordType[] = ['min7', 'maj7', 'min', 'maj', 'sus4'];
 export const CLAP_NOISES: ClapNoise[] = ['white', 'pink', 'brown'];
+export const CHORD_NAMES: ChordName[] = ['Cmaj', 'Amin', 'Fmaj', 'Gmaj'];
 
-const CHORD_INTERVALS: Record<ChordType, number[]> = {
-  min7: [0, 3, 7, 10],
-  maj7: [0, 4, 7, 11],
-  min: [0, 3, 7],
-  maj: [0, 4, 7],
-  sus4: [0, 5, 7],
+const CHORD_NOTES: Record<ChordName, string[]> = {
+  Cmaj: ['C4', 'E4', 'G4'],
+  Amin: ['A3', 'C4', 'E4'],
+  Fmaj: ['F3', 'A3', 'C4'],
+  Gmaj: ['G3', 'B3', 'D4'],
 };
 
 const DEFAULT_CONFIG: SynthConfig = {
   kickNote: 'C1',
   clapNoise: 'white',
   hatCutoff: 8000,
-  chordRoot: 'C4',
-  chordType: 'min7',
+  chord: 'Cmaj',
 };
 
 interface Kit {
   kick: Tone.MembraneSynth;
+  snare: Tone.NoiseSynth;
   clap: Tone.NoiseSynth;
   'hi-hat': Tone.NoiseSynth;
+  'open-hat': Tone.NoiseSynth;
   hatFilter: Tone.Filter;
+  tom: Tone.MembraneSynth;
+  rim: Tone.MetalSynth;
   synth: Tone.PolySynth;
   synthFilter: Tone.Filter;
 }
@@ -94,6 +99,18 @@ export function useBeatPadAudio(): BeatPadAudio {
       });
       hat.connect(hatFilter);
 
+      const openHat = new Tone.NoiseSynth({
+        noise: { type: 'white' },
+        envelope: {
+          attack: 0.001,
+          decay: 0.3,
+          sustain: 0.04,
+          release: 0.25,
+        },
+        volume: -16,
+      });
+      openHat.connect(hatFilter);
+
       const synthFilter = new Tone.Filter(
         EXPRESSION_MAX_HZ,
         'lowpass',
@@ -123,6 +140,17 @@ export function useBeatPadAudio(): BeatPadAudio {
           },
         }).toDestination(),
 
+        snare: new Tone.NoiseSynth({
+          noise: { type: 'white' },
+          envelope: {
+            attack: 0.001,
+            decay: 0.2,
+            sustain: 0,
+            release: 0.08,
+          },
+          volume: -8,
+        }).toDestination(),
+
         clap: new Tone.NoiseSynth({
           noise: { type: configRef.current.clapNoise },
           envelope: {
@@ -135,7 +163,34 @@ export function useBeatPadAudio(): BeatPadAudio {
         }).toDestination(),
 
         'hi-hat': hat,
+        'open-hat': openHat,
         hatFilter,
+
+        tom: new Tone.MembraneSynth({
+          pitchDecay: 0.1,
+          octaves: 3,
+          oscillator: { type: 'sine' },
+          envelope: {
+            attack: 0.001,
+            decay: 0.4,
+            sustain: 0.01,
+            release: 0.6,
+          },
+          volume: -4,
+        }).toDestination(),
+
+        rim: new Tone.MetalSynth({
+          harmonicity: 8,
+          modulationIndex: 18,
+          resonance: 5000,
+          octaves: 1,
+          envelope: {
+            attack: 0.001,
+            decay: 0.04,
+            release: 0.02,
+          },
+          volume: -20,
+        }).toDestination(),
 
         synth,
         synthFilter,
@@ -185,19 +240,31 @@ export function useBeatPadAudio(): BeatPadAudio {
         case 'kick':
           kit.kick.triggerAttackRelease(cfg.kickNote, '8n', startTime);
           break;
+        case 'snare':
+          kit.snare.triggerAttackRelease('16n', startTime);
+          break;
         case 'clap':
           kit.clap.triggerAttackRelease('16n', startTime);
           break;
         case 'hi-hat':
           kit['hi-hat'].triggerAttackRelease('32n', startTime);
           break;
-        case 'synth': {
-          const chord = Tone.Frequency(cfg.chordRoot)
-            .harmonize(CHORD_INTERVALS[cfg.chordType])
-            .map((f) => f.toNote());
-          kit.synth.triggerAttackRelease(chord, '2n', startTime);
+        case 'open-hat':
+          kit['open-hat'].triggerAttackRelease('8n', startTime);
           break;
-        }
+        case 'tom':
+          kit.tom.triggerAttackRelease('G2', '8n', startTime);
+          break;
+        case 'rim':
+          kit.rim.triggerAttackRelease('C7', '32n', startTime);
+          break;
+        case 'synth':
+          kit.synth.triggerAttackRelease(
+            CHORD_NOTES[cfg.chord],
+            '2n',
+            startTime,
+          );
+          break;
       }
     },
     [isLoaded],

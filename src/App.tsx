@@ -4,11 +4,10 @@ import {
   useBeatPadAudio,
   KICK_NOTES,
   HAT_CUTOFFS,
-  CHORD_ROOTS,
-  CHORD_TYPES,
+  CHORD_NAMES,
   CLAP_NOISES,
   type SampleName,
-  type ChordType,
+  type ChordName,
   type ClapNoise,
 } from './hooks/useBeatPadAudio';
 import { useLoopStation } from './hooks/useLoopStation';
@@ -17,25 +16,30 @@ import { useFaceTracking, type LipBox } from './hooks/useFaceTracking';
 interface Pad {
   name: SampleName;
   label: string;
-  hue: number; // 0..360
-  // grid position inside the pad cluster (col, row), 0-indexed, 2x2 grid
-  col: 0 | 1;
-  row: 0 | 1;
+  col: number;
+  row: number;
 }
 
+const GRID_COLS = 4;
+const GRID_ROWS = 2;
+
 const PADS: Pad[] = [
-  { name: 'kick',   label: 'KICK',  hue: 350, col: 0, row: 0 },
-  { name: 'clap',   label: 'CLAP',  hue: 35,  col: 1, row: 0 },
-  { name: 'hi-hat', label: 'HAT',   hue: 190, col: 0, row: 1 },
-  { name: 'synth',  label: 'SYNTH', hue: 270, col: 1, row: 1 },
+  { name: 'kick',     label: 'KICK',  col: 0, row: 0 },
+  { name: 'snare',    label: 'SNARE', col: 1, row: 0 },
+  { name: 'clap',     label: 'CLAP',  col: 2, row: 0 },
+  { name: 'hi-hat',   label: 'HAT',   col: 3, row: 0 },
+  { name: 'open-hat', label: 'OPEN',  col: 0, row: 1 },
+  { name: 'tom',      label: 'TOM',   col: 1, row: 1 },
+  { name: 'rim',      label: 'RIM',   col: 2, row: 1 },
+  { name: 'synth',    label: 'SYNTH', col: 3, row: 1 },
 ];
 
-// Pad cluster geometry (normalized 0..1, bottom-right corner)
-const CLUSTER = { x: 0.62, y: 0.50, w: 0.33, h: 0.45, gap: 0.022 };
+// Pad cluster geometry (normalized 0..1)
+const CLUSTER = { x: 0.36, y: 0.56, w: 0.60, h: 0.38, gap: 0.016 };
 
 function padRect(pad: Pad) {
-  const cellW = (CLUSTER.w - CLUSTER.gap) / 2;
-  const cellH = (CLUSTER.h - CLUSTER.gap) / 2;
+  const cellW = (CLUSTER.w - CLUSTER.gap * (GRID_COLS - 1)) / GRID_COLS;
+  const cellH = (CLUSTER.h - CLUSTER.gap * (GRID_ROWS - 1)) / GRID_ROWS;
   return {
     x: CLUSTER.x + pad.col * (cellW + CLUSTER.gap),
     y: CLUSTER.y + pad.row * (cellH + CLUSTER.gap),
@@ -76,6 +80,7 @@ export default function App() {
   }, [expressionMode, mouthOpenness, updateFilterFrequency]);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [hitAt, setHitAt] = useState<Record<string, number>>({});
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const prevPinchRef = useRef<boolean[]>([]);
@@ -178,13 +183,13 @@ export default function App() {
       {/* Sidebar */}
       <Sidebar open={sidebarOpen} onToggle={() => setSidebarOpen((v) => !v)} hoverKey={hoverKey}>
         <Section title="Kick" hue={350}>
-          <Cycle label="Note" value={config.kickNote} onChange={(v) => updateConfig({ kickNote: v })} options={KICK_NOTES} pinchKey="kick-note" hoverKey={hoverKey} />
+          <Dropdown label="Note" value={config.kickNote} onChange={(v) => updateConfig({ kickNote: v })} options={KICK_NOTES} pinchKey="kick-note" hoverKey={hoverKey} openKey={openDropdown} onOpenChange={setOpenDropdown} />
         </Section>
         <Section title="Clap" hue={35}>
-          <Cycle label="Noise" value={config.clapNoise} onChange={(v) => updateConfig({ clapNoise: v as ClapNoise })} options={CLAP_NOISES} pinchKey="clap-noise" hoverKey={hoverKey} />
+          <Dropdown label="Noise" value={config.clapNoise} onChange={(v) => updateConfig({ clapNoise: v as ClapNoise })} options={CLAP_NOISES} pinchKey="clap-noise" hoverKey={hoverKey} openKey={openDropdown} onOpenChange={setOpenDropdown} />
         </Section>
         <Section title="Hi-Hat" hue={190}>
-          <Cycle
+          <Dropdown
             label="Cutoff"
             value={String(config.hatCutoff)}
             onChange={(v) => updateConfig({ hatCutoff: Number(v) })}
@@ -192,11 +197,12 @@ export default function App() {
             suffix=" Hz"
             pinchKey="hat-cutoff"
             hoverKey={hoverKey}
+            openKey={openDropdown}
+            onOpenChange={setOpenDropdown}
           />
         </Section>
         <Section title="Synth" hue={270}>
-          <Cycle label="Root" value={config.chordRoot} onChange={(v) => updateConfig({ chordRoot: v })} options={CHORD_ROOTS} pinchKey="synth-root" hoverKey={hoverKey} />
-          <Cycle label="Chord" value={config.chordType} onChange={(v) => updateConfig({ chordType: v as ChordType })} options={CHORD_TYPES} pinchKey="synth-chord" hoverKey={hoverKey} />
+          <Dropdown label="Chord" value={config.chord} onChange={(v) => updateConfig({ chord: v as ChordName })} options={CHORD_NAMES} pinchKey="synth-chord" hoverKey={hoverKey} openKey={openDropdown} onOpenChange={setOpenDropdown} />
         </Section>
       </Sidebar>
 
@@ -218,10 +224,10 @@ export default function App() {
               top: `${r.y * 100}%`,
               width: `${r.w * 100}%`,
               height: `${r.h * 100}%`,
-              borderRadius: 18,
-              background: `linear-gradient(160deg, hsla(${pad.hue}, 70%, 22%, 0.85), hsla(${pad.hue}, 60%, 10%, 0.85))`,
-              border: `1px solid hsla(${pad.hue}, 80%, ${40 + glow * 30}%, ${0.35 + glow * 0.5})`,
-              boxShadow: `inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 24px rgba(0,0,0,0.4), 0 0 ${glow * 60}px hsla(${pad.hue}, 90%, 55%, ${glow * 0.6})`,
+              borderRadius: 16,
+              background: 'linear-gradient(160deg, rgba(42,46,54,0.82), rgba(22,24,29,0.82))',
+              border: `1px solid rgba(255,255,255,${0.08 + glow * 0.5})`,
+              boxShadow: `inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 24px rgba(0,0,0,0.45), 0 0 ${glow * 55}px rgba(34,211,238,${glow * 0.55})`,
               transform: `scale(${scale})`,
               transition: active ? 'none' : 'transform 180ms ease-out',
               boxSizing: 'border-box',
@@ -230,15 +236,15 @@ export default function App() {
             }}
           >
             <span style={{
-              fontSize: 11, letterSpacing: 2, fontFamily: 'ui-monospace, monospace',
-              color: `hsla(${pad.hue}, 90%, 80%, 0.9)`,
+              fontSize: 12, letterSpacing: 2, fontFamily: 'ui-monospace, monospace',
+              color: `rgba(230,232,238,${0.5 + glow * 0.5})`,
             }}>
               {pad.label}
             </span>
             <span style={{
               width: 8, height: 8, borderRadius: '50%',
-              background: `hsl(${pad.hue}, 90%, ${55 + glow * 20}%)`,
-              boxShadow: `0 0 ${4 + glow * 16}px hsl(${pad.hue}, 90%, 60%)`,
+              background: glow > 0.02 ? ACCENT : 'rgba(255,255,255,0.28)',
+              boxShadow: `0 0 ${4 + glow * 16}px rgba(34,211,238,${glow})`,
             }} />
           </div>
         );
@@ -354,32 +360,75 @@ function Section({ title, hue, children }: { title: string; hue: number; childre
   );
 }
 
-function Cycle({ label, value, options, onChange, suffix, pinchKey, hoverKey }: { label: string; value: string; options: string[]; onChange: (v: string) => void; suffix?: string; pinchKey: string; hoverKey: string | null }) {
+function Dropdown({ label, value, options, onChange, suffix, pinchKey, hoverKey, openKey, onOpenChange }: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+  suffix?: string;
+  pinchKey: string;
+  hoverKey: string | null;
+  openKey: string | null;
+  onOpenChange: (key: string | null) => void;
+}) {
+  const isOpen = openKey === pinchKey;
   const hovered = hoverKey === pinchKey;
-  const idx = Math.max(0, options.indexOf(value));
-  const advance = () => onChange(options[(idx + 1) % options.length]);
   return (
-    <button
-      data-pinch={pinchKey}
-      onClick={advance}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-        width: '100%', boxSizing: 'border-box', padding: '15px 16px',
-        background: hovered ? 'rgba(34,211,238,0.14)' : 'rgba(255,255,255,0.05)',
-        border: `1px solid ${hovered ? ACCENT : BORDER}`, borderRadius: 12,
-        color: TEXT, cursor: 'pointer', fontFamily: 'inherit', fontSize: 15,
-        boxShadow: hovered ? `0 0 0 2px ${ACCENT}44` : 'none',
-        transition: 'background 120ms, border-color 120ms, box-shadow 120ms',
-      }}
-    >
-      <span style={{ fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: MUTED }}>
-        {label}
-      </span>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
-        {value}{suffix ?? ''}
-        <span style={{ color: ACCENT, fontSize: 14 }}>▸</span>
-      </span>
-    </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <button
+        data-pinch={pinchKey}
+        onClick={() => onOpenChange(isOpen ? null : pinchKey)}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+          width: '100%', boxSizing: 'border-box', padding: '14px 16px',
+          background: hovered || isOpen ? 'rgba(34,211,238,0.14)' : 'rgba(255,255,255,0.05)',
+          border: `1px solid ${hovered || isOpen ? ACCENT : BORDER}`, borderRadius: 12,
+          color: TEXT, cursor: 'pointer', fontFamily: 'inherit', fontSize: 15,
+          boxShadow: hovered ? `0 0 0 2px ${ACCENT}44` : 'none',
+          transition: 'background 120ms, border-color 120ms, box-shadow 120ms',
+        }}
+      >
+        <span style={{ fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: MUTED }}>
+          {label}
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+          {value}{suffix ?? ''}
+          <span style={{ color: ACCENT, fontSize: 13 }}>{isOpen ? '▴' : '▾'}</span>
+        </span>
+      </button>
+      {isOpen && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {options.map((o) => {
+            const optKey = `${pinchKey}::${o}`;
+            const optHovered = hoverKey === optKey;
+            const selected = o === value;
+            return (
+              <button
+                key={o}
+                data-pinch={optKey}
+                onClick={() => { onChange(o); onOpenChange(null); }}
+                style={{
+                  textAlign: 'left', boxSizing: 'border-box',
+                  width: '100%', padding: '11px 16px',
+                  background: optHovered
+                    ? 'rgba(34,211,238,0.22)'
+                    : selected
+                      ? 'rgba(34,211,238,0.10)'
+                      : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${optHovered ? ACCENT : selected ? 'rgba(34,211,238,0.4)' : BORDER}`,
+                  borderRadius: 10,
+                  color: selected ? ACCENT : TEXT,
+                  cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, fontWeight: 600,
+                  transition: 'background 120ms, border-color 120ms',
+                }}
+              >
+                {o}{suffix ?? ''}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
