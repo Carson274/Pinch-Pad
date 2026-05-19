@@ -5,25 +5,23 @@ type GlobalFaceMesh = {
   FaceMesh: typeof FaceMeshClass;
 };
 
-export type LipContours = { x: number; y: number }[][];
+export interface LipBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 export interface FaceTrackingState {
   mouthOpenness: number;
   isFaceDetected: boolean;
-  lipContours: LipContours | null;
+  lipBox: LipBox | null;
 }
 
 const MOUTH_CLOSED_RATIO = 0.02;
 const MOUTH_OPEN_RATIO = 0.13;
 const SMOOTHING = 0.35;
-const LIP_OUTER = [
-  61, 146, 91, 181, 84, 17, 314, 405, 321, 375,
-  291, 409, 270, 269, 267, 0, 37, 39, 40, 185,
-];
-const LIP_INNER = [
-  78, 95, 88, 178, 87, 14, 317, 402, 318, 324,
-  308, 415, 310, 311, 312, 13, 82, 81, 80, 191,
-];
+const LIP_LANDMARKS = [61, 291, 0, 13, 14, 17];
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -35,7 +33,7 @@ export function useFaceTracking(
 ): FaceTrackingState {
   const [mouthOpenness, setMouthOpenness] = useState(0);
   const [isFaceDetected, setIsFaceDetected] = useState(false);
-  const [lipContours, setLipContours] = useState<LipContours | null>(null);
+  const [lipBox, setLipBox] = useState<LipBox | null>(null);
   const smoothedRef = useRef(0);
 
   useEffect(() => {
@@ -73,7 +71,7 @@ export function useFaceTracking(
         const landmarks = results.multiFaceLandmarks?.[0];
         if (!landmarks) {
           setIsFaceDetected(false);
-          setLipContours(null);
+          setLipBox(null);
           return;
         }
         setIsFaceDetected(true);
@@ -98,11 +96,19 @@ export function useFaceTracking(
         smoothedRef.current += (target - smoothedRef.current) * SMOOTHING;
         setMouthOpenness(smoothedRef.current);
 
-        setLipContours(
-          [LIP_OUTER, LIP_INNER].map((ids) =>
-            ids.map((id) => ({ x: 1 - landmarks[id].x, y: landmarks[id].y })),
-          ),
-        );
+        let minX = 1;
+        let maxX = 0;
+        let minY = 1;
+        let maxY = 0;
+        for (const id of LIP_LANDMARKS) {
+          const mx = 1 - landmarks[id].x;
+          const my = landmarks[id].y;
+          if (mx < minX) minX = mx;
+          if (mx > maxX) maxX = mx;
+          if (my < minY) minY = my;
+          if (my > maxY) maxY = my;
+        }
+        setLipBox({ x: minX, y: minY, w: maxX - minX, h: maxY - minY });
       });
 
       const tick = async () => {
