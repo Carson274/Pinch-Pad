@@ -4,6 +4,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    include: ['@mediapipe/hands', '@mediapipe/camera_utils'],
+    include: ['@mediapipe/hands', '@mediapipe/camera_utils', '@mediapipe/face_mesh'],
   },
 });

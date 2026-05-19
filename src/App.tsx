@@ -12,6 +12,7 @@ import {
   type ClapNoise,
 } from './hooks/useBeatPadAudio';
 import { useLoopStation } from './hooks/useLoopStation';
+import { useFaceTracking, type LipBox } from './hooks/useFaceTracking';
 
 interface Pad {
   name: SampleName;
@@ -56,7 +57,7 @@ const MUTED = '#8a93a6';
 
 export default function App() {
   const { hands, videoRef } = useHandTracking();
-  const { start, playSample, isLoaded, config, updateConfig } = useBeatPadAudio();
+  const { start, playSample, isLoaded, config, updateConfig, updateFilterFrequency } = useBeatPadAudio();
   const {
     isRecording,
     isPlaying,
@@ -66,6 +67,13 @@ export default function App() {
     loopProgress,
     clearLoop,
   } = useLoopStation(playSample);
+
+  const [expressionMode, setExpressionMode] = useState(false);
+  const { mouthOpenness, lipBox } = useFaceTracking(videoRef, expressionMode);
+
+  useEffect(() => {
+    updateFilterFrequency(expressionMode ? mouthOpenness : 1);
+  }, [expressionMode, mouthOpenness, updateFilterFrequency]);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [hitAt, setHitAt] = useState<Record<string, number>>({});
@@ -162,6 +170,9 @@ export default function App() {
           </span>
         </TransportBtn>
         <TransportBtn onClick={clearLoop} pinchKey="clear" hoverKey={hoverKey}>Clear</TransportBtn>
+        <TransportBtn onClick={() => setExpressionMode((v) => !v)} active={expressionMode} pinchKey="expression" hoverKey={hoverKey}>
+          {expressionMode ? '◉ Expression' : 'Expression'}
+        </TransportBtn>
       </div>
 
       {/* Sidebar */}
@@ -235,6 +246,9 @@ export default function App() {
 
       {/* Hand indicators — line between thumb & index */}
       <HandOverlay hands={hands} />
+
+      {/* Expression Mode — lip tracking box */}
+      {expressionMode && lipBox && <LipOverlay box={lipBox} openness={mouthOpenness} />}
 
       {/* Loop progress */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: 3, background: 'rgba(255,255,255,0.06)', zIndex: 10, pointerEvents: 'none' }}>
@@ -366,6 +380,26 @@ function Cycle({ label, value, options, onChange, suffix, pinchKey, hoverKey }: 
         <span style={{ color: ACCENT, fontSize: 14 }}>▸</span>
       </span>
     </button>
+  );
+}
+
+function LipOverlay({ box, openness }: { box: LipBox; openness: number }) {
+  const pad = 0.012;
+  const x = (box.x - pad) * 100;
+  const y = (box.y - pad) * 100;
+  const w = (box.w + pad * 2) * 100;
+  const h = (box.h + pad * 2) * 100;
+  return (
+    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 998 }}>
+      <rect
+        x={`${x}%`} y={`${y}%`} width={`${w}%`} height={`${h}%`}
+        rx={10}
+        fill={`rgba(34,211,238,${0.04 + openness * 0.22})`}
+        stroke={ACCENT}
+        strokeWidth={2 + openness * 2}
+        style={{ filter: `drop-shadow(0 0 ${4 + openness * 16}px ${ACCENT})` }}
+      />
+    </svg>
   );
 }
 

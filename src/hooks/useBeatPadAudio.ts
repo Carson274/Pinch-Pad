@@ -19,7 +19,11 @@ export interface BeatPadAudio {
   isLoaded: boolean;
   config: SynthConfig;
   updateConfig: (partial: Partial<SynthConfig>) => void;
+  updateFilterFrequency: (openness: number) => void;
 }
+
+const EXPRESSION_MIN_HZ = 400;
+const EXPRESSION_MAX_HZ = 4000;
 
 export const KICK_NOTES = ['C0', 'E0', 'G0', 'A0', 'C1', 'E1', 'G1', 'C2'];
 export const HAT_CUTOFFS = [5000, 6500, 8000, 9500, 11000];
@@ -52,6 +56,7 @@ interface Kit {
   'hi-hat': Tone.NoiseSynth;
   hatFilter: Tone.Filter;
   synth: Tone.PolySynth;
+  synthFilter: Tone.Filter;
 }
 
 export function useBeatPadAudio(): BeatPadAudio {
@@ -89,6 +94,22 @@ export function useBeatPadAudio(): BeatPadAudio {
       });
       hat.connect(hatFilter);
 
+      const synthFilter = new Tone.Filter(
+        EXPRESSION_MAX_HZ,
+        'lowpass',
+      ).toDestination();
+      const synth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: 'triangle' },
+        envelope: {
+          attack: 0.02,
+          decay: 0.3,
+          sustain: 0.4,
+          release: 1.2,
+        },
+        volume: -10,
+      });
+      synth.connect(synthFilter);
+
       kitRef.current = {
         kick: new Tone.MembraneSynth({
           pitchDecay: 0.08,
@@ -116,16 +137,8 @@ export function useBeatPadAudio(): BeatPadAudio {
         'hi-hat': hat,
         hatFilter,
 
-        synth: new Tone.PolySynth(Tone.Synth, {
-          oscillator: { type: 'triangle' },
-          envelope: {
-            attack: 0.02,
-            decay: 0.3,
-            sustain: 0.4,
-            release: 1.2,
-          },
-          volume: -10,
-        }).toDestination(),
+        synth,
+        synthFilter,
       };
 
       setIsLoaded(true);
@@ -146,6 +159,15 @@ export function useBeatPadAudio(): BeatPadAudio {
 
   const updateConfig = useCallback((partial: Partial<SynthConfig>) => {
     setConfig((prev) => ({ ...prev, ...partial }));
+  }, []);
+
+  const updateFilterFrequency = useCallback((openness: number) => {
+    const kit = kitRef.current;
+    if (!kit) return;
+    const clamped = Math.min(1, Math.max(0, openness));
+    const freq =
+      EXPRESSION_MIN_HZ + clamped * (EXPRESSION_MAX_HZ - EXPRESSION_MIN_HZ);
+    kit.synthFilter.frequency.rampTo(freq, 0.08);
   }, []);
 
   const playSample = useCallback(
@@ -181,5 +203,5 @@ export function useBeatPadAudio(): BeatPadAudio {
     [isLoaded],
   );
 
-  return { start, playSample, isLoaded, config, updateConfig };
+  return { start, playSample, isLoaded, config, updateConfig, updateFilterFrequency };
 }
