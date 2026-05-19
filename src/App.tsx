@@ -1,6 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { useHandTracking } from './hooks/useHandTracking';
-import { useBeatPadAudio, type SampleName } from './hooks/useBeatPadAudio';
+import {
+  useBeatPadAudio,
+  KICK_NOTES,
+  HAT_CUTOFFS,
+  CHORD_ROOTS,
+  CHORD_TYPES,
+  CLAP_NOISES,
+  type SampleName,
+  type ChordType,
+  type ClapNoise,
+} from './hooks/useBeatPadAudio';
 import { useLoopStation } from './hooks/useLoopStation';
 
 interface Pad {
@@ -30,7 +40,8 @@ function hitTest(px: number, py: number, pad: Pad): boolean {
 
 export default function App() {
   const { hands, videoRef } = useHandTracking();
-  const { start, playSample, isLoaded } = useBeatPadAudio();
+  const { start, playSample, isLoaded, config, updateConfig } =
+    useBeatPadAudio();
   const {
     isRecording,
     isPlaying,
@@ -154,6 +165,95 @@ export default function App() {
         <button onClick={clearLoop} style={{ padding: '8px 16px' }}>
           Clear
         </button>
+      </div>
+
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 16,
+          left: 16,
+          zIndex: 10,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          padding: 8,
+          background: 'rgba(0, 0, 0, 0.6)',
+          color: '#fff',
+          fontFamily: 'monospace',
+          fontSize: 12,
+        }}
+      >
+        <label>
+          kick{' '}
+          <select
+            value={config.kickNote}
+            onChange={(e) => updateConfig({ kickNote: e.target.value })}
+          >
+            {KICK_NOTES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          clap{' '}
+          <select
+            value={config.clapNoise}
+            onChange={(e) =>
+              updateConfig({ clapNoise: e.target.value as ClapNoise })
+            }
+          >
+            {CLAP_NOISES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          hi-hat{' '}
+          <select
+            value={config.hatCutoff}
+            onChange={(e) =>
+              updateConfig({ hatCutoff: Number(e.target.value) })
+            }
+          >
+            {HAT_CUTOFFS.map((n) => (
+              <option key={n} value={n}>
+                {n} Hz
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          synth root{' '}
+          <select
+            value={config.chordRoot}
+            onChange={(e) => updateConfig({ chordRoot: e.target.value })}
+          >
+            {CHORD_ROOTS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          synth chord{' '}
+          <select
+            value={config.chordType}
+            onChange={(e) =>
+              updateConfig({ chordType: e.target.value as ChordType })
+            }
+          >
+            {CHORD_TYPES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div
