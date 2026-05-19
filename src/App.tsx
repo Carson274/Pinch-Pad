@@ -237,15 +237,17 @@ function TransportBtn({ children, onClick, active, danger }: { children: React.R
   );
 }
 
+const SIDEBAR_W = 248;
+
 function Sidebar({ open, onToggle, children }: { open: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
     <>
       <button
         onClick={onToggle}
         style={{
-          position: 'absolute', top: '50%', left: open ? 248 : 8, transform: 'translateY(-50%)',
-          zIndex: 12, width: 24, height: 48, borderRadius: 8, background: SURFACE,
-          border: `1px solid ${BORDER}`, color: TEXT, cursor: 'pointer',
+          position: 'absolute', top: '50%', left: open ? SIDEBAR_W + 24 : 8, transform: 'translateY(-50%)',
+          zIndex: 12, width: 26, height: 52, borderRadius: 10, background: SURFACE,
+          border: `1px solid ${BORDER}`, color: MUTED, cursor: 'pointer', fontSize: 16,
           transition: 'left 220ms ease', backdropFilter: 'blur(12px)',
         }}
         aria-label="Toggle sidebar"
@@ -253,39 +255,66 @@ function Sidebar({ open, onToggle, children }: { open: boolean; onToggle: () => 
         {open ? '‹' : '›'}
       </button>
       <aside style={{
-        position: 'absolute', top: 16, bottom: 16, left: open ? 16 : -240, width: 224,
-        background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 14, zIndex: 11,
-        backdropFilter: 'blur(14px)', padding: 14, overflowY: 'auto',
-        transition: 'left 220ms ease', display: 'flex', flexDirection: 'column', gap: 14,
+        position: 'absolute', top: 16, bottom: 16, left: open ? 16 : -(SIDEBAR_W + 16), width: SIDEBAR_W,
+        boxSizing: 'border-box', background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 16,
+        zIndex: 11, backdropFilter: 'blur(14px)', overflowY: 'auto',
+        transition: 'left 220ms ease', display: 'flex', flexDirection: 'column',
+        boxShadow: '0 16px 48px rgba(0,0,0,0.45)',
       }}>
-        <div style={{ fontSize: 11, letterSpacing: 3, color: MUTED, textTransform: 'uppercase' }}>
-          Sound Design
+        <div style={{ padding: '18px 18px 14px', borderBottom: `1px solid ${BORDER}` }}>
+          <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: 0.5, color: TEXT }}>
+            PINCH<span style={{ color: ACCENT }}>·</span>PAD
+          </div>
+          <div style={{ fontSize: 10, letterSpacing: 3, color: MUTED, textTransform: 'uppercase', marginTop: 3 }}>
+            Sound Design
+          </div>
         </div>
-        {children}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {children}
+        </div>
       </aside>
     </>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, hue, children }: { title: string; hue: number; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: TEXT }}>{title}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{children}</div>
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 10,
+      padding: '14px 18px', borderBottom: `1px solid ${BORDER}`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{
+          width: 9, height: 9, borderRadius: '50%',
+          background: `hsl(${hue}, 80%, 56%)`,
+          boxShadow: `0 0 8px hsla(${hue}, 90%, 56%, 0.7)`,
+        }} />
+        <span style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: 1.5,
+          textTransform: 'uppercase', color: TEXT,
+        }}>
+          {title}
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{children}</div>
     </div>
   );
 }
 
 function Select({ value, onChange, options, label, suffix }: { value: string; onChange: (v: string) => void; options: string[]; label?: string; suffix?: string }) {
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: MUTED }}>
-      {label && <span style={{ width: 44 }}>{label}</span>}
+    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11 }}>
+      <span style={{
+        width: 52, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: MUTED,
+      }}>
+        {label ?? ''}
+      </span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={{
-          flex: 1, padding: '6px 8px', background: SURFACE_SOLID, color: TEXT,
-          border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 12,
+          flex: 1, padding: '7px 10px', background: SURFACE_SOLID, color: TEXT,
+          border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 12,
           fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
         }}
       >
