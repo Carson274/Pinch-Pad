@@ -5,7 +5,7 @@ export type SampleName = 'kick' | 'clap' | 'hi-hat' | 'synth';
 
 export interface BeatPadAudio {
   start: () => Promise<void>;
-  playSample: (name: SampleName) => void;
+  playSample: (name: SampleName, time?: number) => void;
   isLoaded: boolean;
 }
 
@@ -42,13 +42,17 @@ export function useBeatPadAudio(): BeatPadAudio {
     }
   }, []);
 
-  const playSample = useCallback((name: SampleName) => {
+  const lastStartRef = useRef<Partial<Record<SampleName, number>>>({});
+
+  const playSample = useCallback((name: SampleName, time?: number) => {
     const players = playersRef.current;
     if (!players || !isLoaded) return;
     const player = players.player(name);
-    // .start() with no args plays from the head; works fine for one-shots
-    // even if the previous trigger is still ringing out.
-    player.start();
+    const requested = time ?? Tone.now();
+    const previous = lastStartRef.current[name] ?? 0;
+    const startTime = Math.max(requested, previous + 0.001);
+    lastStartRef.current[name] = startTime;
+    player.start(startTime);
   }, [isLoaded]);
 
   return { start, playSample, isLoaded };

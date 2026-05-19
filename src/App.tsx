@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useHandTracking } from './hooks/useHandTracking';
 import { useBeatPadAudio, type SampleName } from './hooks/useBeatPadAudio';
+import { useLoopStation } from './hooks/useLoopStation';
 
 interface Pad {
   name: SampleName;
@@ -30,6 +31,15 @@ function hitTest(px: number, py: number, pad: Pad): boolean {
 export default function App() {
   const { hands, videoRef } = useHandTracking();
   const { start, playSample, isLoaded } = useBeatPadAudio();
+  const {
+    isRecording,
+    isPlaying,
+    toggleRecord,
+    togglePlay,
+    recordHit,
+    loopProgress,
+    clearLoop,
+  } = useLoopStation(playSample);
 
   const prevPinchRef = useRef<boolean[]>([]);
   useEffect(() => {
@@ -39,13 +49,14 @@ export default function App() {
         for (const pad of PAD_LAYOUT) {
           if (hitTest(hand.x, hand.y, pad)) {
             playSample(pad.name);
+            recordHit(pad.name);
             break;
           }
         }
       }
     });
     prevPinchRef.current = hands.map((hand) => hand.isPinching);
-  }, [hands, playSample]);
+  }, [hands, playSample, recordHit]);
 
   return (
     <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#000' }}>
@@ -123,6 +134,48 @@ export default function App() {
           }}
         />
       ))}
+
+      <div
+        style={{
+          position: 'absolute',
+          top: 16,
+          right: 16,
+          display: 'flex',
+          gap: 8,
+          zIndex: 10,
+        }}
+      >
+        <button onClick={togglePlay} style={{ padding: '8px 16px' }}>
+          {isPlaying ? 'Stop' : 'Play'}
+        </button>
+        <button onClick={toggleRecord} style={{ padding: '8px 16px' }}>
+          {isRecording ? 'Recording...' : 'Record'}
+        </button>
+        <button onClick={clearLoop} style={{ padding: '8px 16px' }}>
+          Clear
+        </button>
+      </div>
+
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          width: '100%',
+          height: 6,
+          background: 'rgba(255, 255, 255, 0.2)',
+          zIndex: 10,
+          pointerEvents: 'none',
+        }}
+      >
+        <div
+          style={{
+            width: `${loopProgress * 100}%`,
+            height: '100%',
+            background: '#0f0',
+          }}
+        />
+      </div>
     </div>
   );
 }
