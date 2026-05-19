@@ -7,10 +7,14 @@ type GlobalMediaPipe = {
   Camera: typeof CameraClass;
 };
 
-export interface HandTrackingState {
-  x: number;            // normalized 0..1, already mirrored for selfie view
-  y: number;            // normalized 0..1
+export interface HandState {
+  x: number;
+  y: number;
   isPinching: boolean;
+}
+
+export interface HandTrackingState {
+  hands: HandState[];
   videoRef: React.RefObject<HTMLVideoElement | null>;
 }
 
@@ -20,16 +24,14 @@ const PINCH_THRESHOLD = 0.05;
 
 export function useHandTracking(): HandTrackingState {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [x, setX] = useState(0.5);
-  const [y, setY] = useState(0.5);
-  const [isPinching, setIsPinching] = useState(false);
+  const [hands, setHands] = useState<HandState[]>([]);
 
   useEffect(() => {
     if (!videoRef.current) return;
 
     const videoEl = videoRef.current;
 
-    let hands: HandsClass | null = null;
+    let handsSolution: HandsClass | null = null;
     let camera: CameraClass | null = null;
     let cancelled = false;
 
@@ -44,35 +46,35 @@ export function useHandTracking(): HandTrackingState {
         locateFile: (file) =>
           `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
       });
-      hands = handsInstance;
+      handsSolution = handsInstance;
 
       handsInstance.setOptions({
-        maxNumHands: 1,
+        maxNumHands: 2,
         modelComplexity: 1,
         minDetectionConfidence: 0.7,
         minTrackingConfidence: 0.5,
       });
 
       handsInstance.onResults((results: Results) => {
-        const landmarks = results.multiHandLandmarks?.[0];
-        if (!landmarks) {
-          setIsPinching(false);
-          return;
-        }
+        const allLandmarks = results.multiHandLandmarks ?? [];
 
-        const indexTip = landmarks[8];
-        const thumbTip = landmarks[4];
+        setHands(
+          allLandmarks.map((landmarks) => {
+            const indexTip = landmarks[8];
+            const thumbTip = landmarks[4];
 
-        // Mirror x for selfie-view alignment.
-        setX(1 - indexTip.x);
-        setY(indexTip.y);
+            const dx = indexTip.x - thumbTip.x;
+            const dy = indexTip.y - thumbTip.y;
+            const dz = (indexTip.z ?? 0) - (thumbTip.z ?? 0);
+            const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-        const dx = indexTip.x - thumbTip.x;
-        const dy = indexTip.y - thumbTip.y;
-        const dz = (indexTip.z ?? 0) - (thumbTip.z ?? 0);
-        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-        setIsPinching(distance < PINCH_THRESHOLD);
+            return {
+              x: 1 - indexTip.x,
+              y: indexTip.y,
+              isPinching: distance < PINCH_THRESHOLD,
+            };
+          }),
+        );
       });
 
       const cameraInstance = new Camera(videoEl, {
@@ -90,9 +92,9 @@ export function useHandTracking(): HandTrackingState {
     return () => {
       cancelled = true;
       camera?.stop();
-      hands?.close();
+      handsSolution?.close();
     };
   }, []);
 
-  return { x, y, isPinching, videoRef };
+  return { hands, videoRef };
 }

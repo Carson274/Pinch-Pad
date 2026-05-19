@@ -28,22 +28,24 @@ function hitTest(px: number, py: number, pad: Pad): boolean {
 }
 
 export default function App() {
-  const { x, y, isPinching, videoRef } = useHandTracking();
+  const { hands, videoRef } = useHandTracking();
   const { start, playSample, isLoaded } = useBeatPadAudio();
 
-  // Rising-edge detection: only trigger when isPinching flips false -> true.
-  const prevPinchRef = useRef(false);
+  const prevPinchRef = useRef<boolean[]>([]);
   useEffect(() => {
-    if (isPinching && !prevPinchRef.current) {
-      for (const pad of PAD_LAYOUT) {
-        if (hitTest(x, y, pad)) {
-          playSample(pad.name);
-          break;
+    hands.forEach((hand, i) => {
+      const wasPinching = prevPinchRef.current[i] ?? false;
+      if (hand.isPinching && !wasPinching) {
+        for (const pad of PAD_LAYOUT) {
+          if (hitTest(hand.x, hand.y, pad)) {
+            playSample(pad.name);
+            break;
+          }
         }
       }
-    }
-    prevPinchRef.current = isPinching;
-  }, [isPinching, x, y, playSample]);
+    });
+    prevPinchRef.current = hands.map((hand) => hand.isPinching);
+  }, [hands, playSample]);
 
   return (
     <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#000' }}>
@@ -103,22 +105,24 @@ export default function App() {
         </div>
       ))}
 
-      {/* Cursor dot. */}
-      <div
-        style={{
-          position: 'absolute',
-          left: `${x * 100}%`,
-          top: `${y * 100}%`,
-          width: 16,
-          height: 16,
-          marginLeft: -8,
-          marginTop: -8,
-          borderRadius: '50%',
-          background: isPinching ? '#ff0' : '#f00',
-          pointerEvents: 'none',
-          zIndex: 5,
-        }}
-      />
+      {hands.map((hand, i) => (
+        <div
+          key={i}
+          style={{
+            position: 'absolute',
+            left: `${hand.x * 100}%`,
+            top: `${hand.y * 100}%`,
+            width: 16,
+            height: 16,
+            marginLeft: -8,
+            marginTop: -8,
+            borderRadius: '50%',
+            background: hand.isPinching ? '#ff0' : '#f00',
+            pointerEvents: 'none',
+            zIndex: 5,
+          }}
+        />
+      ))}
     </div>
   );
 }
