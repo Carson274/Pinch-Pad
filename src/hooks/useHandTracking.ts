@@ -7,10 +7,17 @@ type GlobalMediaPipe = {
   Camera: typeof CameraClass;
 };
 
+export interface Point {
+  x: number;
+  y: number;
+}
+
 export interface HandState {
   x: number;
   y: number;
   isPinching: boolean;
+  thumb: Point;
+  index: Point;
 }
 
 export interface HandTrackingState {
@@ -20,7 +27,7 @@ export interface HandTrackingState {
 
 // Tweak this to taste. MediaPipe coordinates are normalized, so 0.05 ≈ 5% of
 // the frame width.
-const PINCH_THRESHOLD = 0.05;
+const PINCH_THRESHOLD = 0.09;
 
 export function useHandTracking(): HandTrackingState {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -68,10 +75,15 @@ export function useHandTracking(): HandTrackingState {
             const dz = (indexTip.z ?? 0) - (thumbTip.z ?? 0);
             const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
+            const index = { x: 1 - indexTip.x, y: indexTip.y };
+            const thumb = { x: 1 - thumbTip.x, y: thumbTip.y };
+
             return {
-              x: 1 - indexTip.x,
-              y: indexTip.y,
+              x: index.x,
+              y: index.y,
               isPinching: distance < PINCH_THRESHOLD,
+              index,
+              thumb,
             };
           }),
         );
