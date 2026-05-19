@@ -49,8 +49,7 @@ function hitTest(px: number, py: number, pad: Pad): boolean {
 }
 
 const ACCENT = '#22d3ee';        // cyan-400
-const SURFACE = 'rgba(15, 18, 24, 0.78)';
-const SURFACE_SOLID = '#0f1218';
+const SURFACE = 'rgba(15, 18, 24, 0.32)';
 const BORDER = 'rgba(255,255,255,0.08)';
 const TEXT = '#e6e8ee';
 const MUTED = '#8a93a6';
@@ -70,30 +69,55 @@ export default function App() {
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [hitAt, setHitAt] = useState<Record<string, number>>({});
+  const [hoverKey, setHoverKey] = useState<string | null>(null);
   const prevPinchRef = useRef<boolean[]>([]);
+  const handsRef = useRef(hands);
 
   useEffect(() => {
+    handsRef.current = hands;
     hands.forEach((hand, i) => {
       const wasPinching = prevPinchRef.current[i] ?? false;
       if (hand.isPinching && !wasPinching) {
+        let hitPad = false;
         for (const pad of PADS) {
           if (hitTest(hand.x, hand.y, pad)) {
             playSample(pad.name);
             recordHit(pad.name);
             setHitAt((prev) => ({ ...prev, [pad.name]: performance.now() }));
+            hitPad = true;
             break;
           }
+        }
+        if (!hitPad) {
+          const el = document.elementFromPoint(
+            hand.x * window.innerWidth,
+            hand.y * window.innerHeight,
+          );
+          el?.closest<HTMLElement>('[data-pinch]')?.click();
         }
       }
     });
     prevPinchRef.current = hands.map((h) => h.isPinching);
   }, [hands, playSample, recordHit]);
 
-  // animation tick for pad flash decay
+  // animation tick for pad flash decay + finger hover detection
   const [now, setNow] = useState(0);
   useEffect(() => {
     let raf = 0;
-    const loop = () => { setNow(performance.now()); raf = requestAnimationFrame(loop); };
+    const loop = () => {
+      setNow(performance.now());
+      const lead = handsRef.current[0];
+      if (lead) {
+        const el = document.elementFromPoint(
+          lead.x * window.innerWidth,
+          lead.y * window.innerHeight,
+        );
+        setHoverKey(el?.closest<HTMLElement>('[data-pinch]')?.dataset.pinch ?? null);
+      } else {
+        setHoverKey(null);
+      }
+      raf = requestAnimationFrame(loop);
+    };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, []);
@@ -114,7 +138,7 @@ export default function App() {
           <button
             onClick={start}
             style={{
-              padding: '14px 28px', fontSize: 14, letterSpacing: 2, textTransform: 'uppercase',
+              padding: '22px 48px', fontSize: 18, letterSpacing: 2, textTransform: 'uppercase',
               background: ACCENT, color: '#001014', border: 'none', borderRadius: 999,
               cursor: 'pointer', fontWeight: 700, boxShadow: `0 0 40px ${ACCENT}55`,
             }}
@@ -127,39 +151,41 @@ export default function App() {
       {/* Transport bar (top center) */}
       <div style={{
         position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
-        display: 'flex', gap: 6, padding: 6, background: SURFACE, border: `1px solid ${BORDER}`,
-        borderRadius: 12, backdropFilter: 'blur(12px)', zIndex: 10,
+        display: 'flex', gap: 10, padding: 10, background: SURFACE, border: `1px solid ${BORDER}`,
+        borderRadius: 14, backdropFilter: 'blur(12px)', zIndex: 10,
       }}>
-        <TransportBtn onClick={togglePlay} active={isPlaying}>{isPlaying ? '■ Stop' : '▶ Play'}</TransportBtn>
-        <TransportBtn onClick={toggleRecord} active={isRecording} danger>
+        <TransportBtn onClick={togglePlay} active={isPlaying} pinchKey="play" hoverKey={hoverKey}>{isPlaying ? '■ Stop' : '▶ Play'}</TransportBtn>
+        <TransportBtn onClick={toggleRecord} active={isRecording} danger pinchKey="record" hoverKey={hoverKey}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: isRecording ? '#ef4444' : '#6b7280' }} />
             {isRecording ? 'Recording' : 'Record'}
           </span>
         </TransportBtn>
-        <TransportBtn onClick={clearLoop}>Clear</TransportBtn>
+        <TransportBtn onClick={clearLoop} pinchKey="clear" hoverKey={hoverKey}>Clear</TransportBtn>
       </div>
 
       {/* Sidebar */}
-      <Sidebar open={sidebarOpen} onToggle={() => setSidebarOpen((v) => !v)}>
+      <Sidebar open={sidebarOpen} onToggle={() => setSidebarOpen((v) => !v)} hoverKey={hoverKey}>
         <Section title="Kick" hue={350}>
-          <Select value={config.kickNote} onChange={(v) => updateConfig({ kickNote: v })} options={KICK_NOTES} label="Note" />
+          <Cycle label="Note" value={config.kickNote} onChange={(v) => updateConfig({ kickNote: v })} options={KICK_NOTES} pinchKey="kick-note" hoverKey={hoverKey} />
         </Section>
         <Section title="Clap" hue={35}>
-          <Select value={config.clapNoise} onChange={(v) => updateConfig({ clapNoise: v as ClapNoise })} options={CLAP_NOISES} label="Noise" />
+          <Cycle label="Noise" value={config.clapNoise} onChange={(v) => updateConfig({ clapNoise: v as ClapNoise })} options={CLAP_NOISES} pinchKey="clap-noise" hoverKey={hoverKey} />
         </Section>
         <Section title="Hi-Hat" hue={190}>
-          <Select
+          <Cycle
+            label="Cutoff"
             value={String(config.hatCutoff)}
             onChange={(v) => updateConfig({ hatCutoff: Number(v) })}
             options={HAT_CUTOFFS.map(String)}
             suffix=" Hz"
-            label="Cutoff"
+            pinchKey="hat-cutoff"
+            hoverKey={hoverKey}
           />
         </Section>
         <Section title="Synth" hue={270}>
-          <Select value={config.chordRoot} onChange={(v) => updateConfig({ chordRoot: v })} options={CHORD_ROOTS} label="Root" />
-          <Select value={config.chordType} onChange={(v) => updateConfig({ chordType: v as ChordType })} options={CHORD_TYPES} label="Chord" />
+          <Cycle label="Root" value={config.chordRoot} onChange={(v) => updateConfig({ chordRoot: v })} options={CHORD_ROOTS} pinchKey="synth-root" hoverKey={hoverKey} />
+          <Cycle label="Chord" value={config.chordType} onChange={(v) => updateConfig({ chordType: v as ChordType })} options={CHORD_TYPES} pinchKey="synth-chord" hoverKey={hoverKey} />
         </Section>
       </Sidebar>
 
@@ -220,16 +246,24 @@ export default function App() {
 
 /* ----------------- subcomponents ----------------- */
 
-function TransportBtn({ children, onClick, active, danger }: { children: React.ReactNode; onClick: () => void; active?: boolean; danger?: boolean }) {
-  const bg = active ? (danger ? 'rgba(239,68,68,0.18)' : 'rgba(34,211,238,0.18)') : 'transparent';
-  const bd = active ? (danger ? 'rgba(239,68,68,0.5)' : 'rgba(34,211,238,0.5)') : BORDER;
+function TransportBtn({ children, onClick, active, danger, pinchKey, hoverKey }: { children: React.ReactNode; onClick: () => void; active?: boolean; danger?: boolean; pinchKey: string; hoverKey: string | null }) {
+  const hovered = hoverKey === pinchKey;
+  const bg = active
+    ? (danger ? 'rgba(239,68,68,0.18)' : 'rgba(34,211,238,0.18)')
+    : (hovered ? 'rgba(34,211,238,0.12)' : 'transparent');
+  const bd = active
+    ? (danger ? 'rgba(239,68,68,0.5)' : 'rgba(34,211,238,0.5)')
+    : (hovered ? ACCENT : BORDER);
   return (
     <button
+      data-pinch={pinchKey}
       onClick={onClick}
       style={{
-        padding: '8px 14px', fontSize: 12, letterSpacing: 1, textTransform: 'uppercase',
-        background: bg, color: TEXT, border: `1px solid ${bd}`, borderRadius: 8,
+        padding: '15px 26px', fontSize: 15, letterSpacing: 1, textTransform: 'uppercase',
+        background: bg, color: TEXT, border: `1px solid ${bd}`, borderRadius: 12,
         cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit',
+        boxShadow: hovered ? `0 0 0 2px ${ACCENT}44` : 'none',
+        transition: 'background 120ms, border-color 120ms, box-shadow 120ms',
       }}
     >
       {children}
@@ -237,18 +271,23 @@ function TransportBtn({ children, onClick, active, danger }: { children: React.R
   );
 }
 
-const SIDEBAR_W = 248;
+const SIDEBAR_W = 304;
 
-function Sidebar({ open, onToggle, children }: { open: boolean; onToggle: () => void; children: React.ReactNode }) {
+function Sidebar({ open, onToggle, hoverKey, children }: { open: boolean; onToggle: () => void; hoverKey: string | null; children: React.ReactNode }) {
+  const hovered = hoverKey === 'sidebar';
   return (
     <>
       <button
+        data-pinch="sidebar"
         onClick={onToggle}
         style={{
           position: 'absolute', top: '50%', left: open ? SIDEBAR_W + 24 : 8, transform: 'translateY(-50%)',
-          zIndex: 12, width: 26, height: 52, borderRadius: 10, background: SURFACE,
-          border: `1px solid ${BORDER}`, color: MUTED, cursor: 'pointer', fontSize: 16,
-          transition: 'left 220ms ease', backdropFilter: 'blur(12px)',
+          zIndex: 12, width: 38, height: 72, borderRadius: 12, background: SURFACE,
+          border: `1px solid ${hovered ? ACCENT : BORDER}`, color: hovered ? ACCENT : MUTED,
+          cursor: 'pointer', fontSize: 24,
+          boxShadow: hovered ? `0 0 0 2px ${ACCENT}44` : 'none',
+          transition: 'left 220ms ease, border-color 120ms, box-shadow 120ms',
+          backdropFilter: 'blur(12px)',
         }}
         aria-label="Toggle sidebar"
       >
@@ -301,46 +340,55 @@ function Section({ title, hue, children }: { title: string; hue: number; childre
   );
 }
 
-function Select({ value, onChange, options, label, suffix }: { value: string; onChange: (v: string) => void; options: string[]; label?: string; suffix?: string }) {
+function Cycle({ label, value, options, onChange, suffix, pinchKey, hoverKey }: { label: string; value: string; options: string[]; onChange: (v: string) => void; suffix?: string; pinchKey: string; hoverKey: string | null }) {
+  const hovered = hoverKey === pinchKey;
+  const idx = Math.max(0, options.indexOf(value));
+  const advance = () => onChange(options[(idx + 1) % options.length]);
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11 }}>
-      <span style={{
-        width: 52, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: MUTED,
-      }}>
-        {label ?? ''}
+    <button
+      data-pinch={pinchKey}
+      onClick={advance}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+        width: '100%', boxSizing: 'border-box', padding: '15px 16px',
+        background: hovered ? 'rgba(34,211,238,0.14)' : 'rgba(255,255,255,0.05)',
+        border: `1px solid ${hovered ? ACCENT : BORDER}`, borderRadius: 12,
+        color: TEXT, cursor: 'pointer', fontFamily: 'inherit', fontSize: 15,
+        boxShadow: hovered ? `0 0 0 2px ${ACCENT}44` : 'none',
+        transition: 'background 120ms, border-color 120ms, box-shadow 120ms',
+      }}
+    >
+      <span style={{ fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: MUTED }}>
+        {label}
       </span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          flex: 1, padding: '7px 10px', background: SURFACE_SOLID, color: TEXT,
-          border: `1px solid ${BORDER}`, borderRadius: 8, fontSize: 12,
-          fontFamily: 'inherit', outline: 'none', cursor: 'pointer',
-        }}
-      >
-        {options.map((o) => <option key={o} value={o}>{o}{suffix ?? ''}</option>)}
-      </select>
-    </label>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+        {value}{suffix ?? ''}
+        <span style={{ color: ACCENT, fontSize: 14 }}>▸</span>
+      </span>
+    </button>
   );
 }
 
 function HandOverlay({ hands }: { hands: ReturnType<typeof useHandTracking>['hands'] }) {
   return (
-    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 5 }}>
+    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 999 }}>
       {hands.map((hand, i) => {
-        const color = hand.isPinching ? ACCENT : 'rgba(255,255,255,0.85)';
+        const color = hand.isPinching ? ACCENT : '#ffffff';
         const tx = hand.thumb.x * 100;
         const ty = hand.thumb.y * 100;
         const ix = hand.index.x * 100;
         const iy = hand.index.y * 100;
+        const glow = hand.isPinching
+          ? `drop-shadow(0 0 10px ${ACCENT})`
+          : 'drop-shadow(0 0 4px rgba(0,0,0,0.95))';
         return (
-          <g key={i}>
+          <g key={i} style={{ filter: glow }}>
             <line
               x1={`${tx}%`} y1={`${ty}%`} x2={`${ix}%`} y2={`${iy}%`}
-              stroke={color} strokeWidth={hand.isPinching ? 3 : 2} strokeLinecap="round"
-              style={{ filter: hand.isPinching ? `drop-shadow(0 0 6px ${ACCENT})` : 'none' }}
+              stroke={color} strokeWidth={hand.isPinching ? 6 : 4} strokeLinecap="round"
             />
-            <circle cx={`${tx}%`} cy={`${ty}%`} r={4} fill={color} />
+            <circle cx={`${tx}%`} cy={`${ty}%`} r={8} fill={color} />
+            <circle cx={`${ix}%`} cy={`${iy}%`} r={hand.isPinching ? 13 : 9} fill="none" stroke={color} strokeWidth={3} />
             <circle cx={`${ix}%`} cy={`${iy}%`} r={4} fill={color} />
           </g>
         );

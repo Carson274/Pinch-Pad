@@ -28,10 +28,12 @@ export interface HandTrackingState {
 // Tweak this to taste. MediaPipe coordinates are normalized, so 0.05 ≈ 5% of
 // the frame width.
 const PINCH_THRESHOLD = 0.09;
+const PINCH_RELEASE = 0.13;
 
 export function useHandTracking(): HandTrackingState {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hands, setHands] = useState<HandState[]>([]);
+  const pinchStateRef = useRef<boolean[]>([]);
 
   useEffect(() => {
     if (!videoRef.current) return;
@@ -66,7 +68,7 @@ export function useHandTracking(): HandTrackingState {
         const allLandmarks = results.multiHandLandmarks ?? [];
 
         setHands(
-          allLandmarks.map((landmarks) => {
+          allLandmarks.map((landmarks, i) => {
             const indexTip = landmarks[8];
             const thumbTip = landmarks[4];
 
@@ -78,10 +80,16 @@ export function useHandTracking(): HandTrackingState {
             const index = { x: 1 - indexTip.x, y: indexTip.y };
             const thumb = { x: 1 - thumbTip.x, y: thumbTip.y };
 
+            const wasPinching = pinchStateRef.current[i] ?? false;
+            const isPinching = wasPinching
+              ? distance < PINCH_RELEASE
+              : distance < PINCH_THRESHOLD;
+            pinchStateRef.current[i] = isPinching;
+
             return {
               x: index.x,
               y: index.y,
-              isPinching: distance < PINCH_THRESHOLD,
+              isPinching,
               index,
               thumb,
             };
